@@ -411,10 +411,10 @@ class MinimumDescriptionLength:
 
 if __name__ == '__main__':
   start_time = t.time()
-  x = np.array(current['x'][:200000])
+  x = np.array(current['x'][:50000])
   n = len(x)
   modelMDL = MinimumDescriptionLength(x, smallest_detectable_segment=300)
-  core_count = 8
+  core_count = 6
   manager = multiprocessing.Manager()
   result = manager.list()  # Use a managed list for variable length
   segment = n // core_count
@@ -442,6 +442,6 @@ if __name__ == '__main__':
   # modelMDL.scan_for_breaks(False)
   fig, ax, data = modelMDL.plot_results(final_result)
   print(data.shape)
-  np.savetxt(data.transpose, delimeter=',', fname="balls.csv")
+  np.savetxt(data.transpose(), delimiter=',', fname="balls.csv")
 
 exit()
