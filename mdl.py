@@ -442,6 +442,6 @@ if __name__ == '__main__':
   # modelMDL.scan_for_breaks(False)
   fig, ax, data = modelMDL.plot_results(final_result)
   print(data.shape)
-  np.savetxt(data.transpose(), delimiter=',', fname="balls.csv")
+  np.savetxt(X=data.transpose(), delimiter=',', fname="balls.csv")
 
 exit()
