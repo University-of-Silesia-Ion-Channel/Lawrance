@@ -1,7 +1,6 @@
 import csv
 import multiprocessing
 import pickle
-from re import X
 import matplotlib.pyplot as plt
 import numpy as np
 # import tensorflow as tf
@@ -150,7 +149,7 @@ class MinimumDescriptionLength:
       breaks = np.sort(self.BP) # po co tutaj sortować to nie wiem
       breaks = breaks[0:len(breaks)-1]
 
-    breaks, stepvalue = self.stepstat_MDL(breaks, self.x)
+    breaks, stepvalue = self.stepstat_MDL(breaks, self.x) # type: ignore
     print(f"breaks after shenanigans: {breaks}" )
     print(f"stepvalue: {stepvalue}" )
     plt.figure(100)
@@ -167,7 +166,7 @@ class MinimumDescriptionLength:
       plt.plot([breaks[k] + dt, breaks[k] + dt], [minx, maxx], 'k-')
 
     # plt.gca().set_fontsize(14)
-    plt.title(f"scan_for_breaks_MDL' test run.")
+    plt.title("scan_for_breaks_MDL' test run.")
     plt.legend(['data', 'O/C', 'breakpoint'])
     plt.xlabel('position')
     plt.ylabel('x')
@@ -392,7 +391,6 @@ class MinimumDescriptionLength:
     i0 = BP[0]
 
     for k in range(len(BP)):
-        indx = np.arange(i0, BP[k])
         mindx = np.arange(i0 + skip, BP[k] - skip)
         # print(f"mindx: {i0 + skip} : {BP[k] - skip}")
         if mindx.size == 0:
