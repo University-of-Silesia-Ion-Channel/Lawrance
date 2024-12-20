@@ -3,14 +3,19 @@ import numpy as np
 import matplotlib.pyplot as plt
 import multiprocessing
 import time
+import csv
 from numba import njit
-
 
 @njit
 def detect_single_breakpoint(x, min_seg):
-    """
-    Szuka pojedynczego breakpointu minimalizującego kryterium loglikelihood.
-    Zwraca pustą tablicę, gdy brak breakpointów lub jedną wartość, gdy znajdzie.
+    """Detects a single breakpoint in a time series.
+
+    Args:
+        x (np.ndarray): One-dimensional input data array
+        min_seg (int): Minimum segment length between breakpoints
+
+    Returns:
+        np.ndarray: Array containing the index of detected breakpoint or empty array if none found
     """
     n = x.size
     if n < 2 * min_seg:
@@ -49,12 +54,16 @@ def detect_single_breakpoint(x, min_seg):
     out[0] = best_idx
     return out
 
-
 @njit
 def detect_double_breakpoint(x, min_seg):
-    """
-    Szuka dwóch breakpointów minimalizujących kryterium loglikelihood.
-    Zwraca pustą tablicę gdy brak, lub tablicę [i, j] gdy znajdzie.
+    """Detects two breakpoints in a time series.
+
+    Args:
+        x (np.ndarray): One-dimensional input data array
+        min_seg (int): Minimum segment length between breakpoints
+
+    Returns:
+        np.ndarray: Array containing indices of detected breakpoints or empty array if none found
     """
     n = x.size
     if n < 3 * min_seg:
@@ -102,14 +111,34 @@ def detect_double_breakpoint(x, min_seg):
 
 
 class MDLBreakDetector:
-    """
-    Wykrywa breakpointy w sygnale za pomocą kryterium MDL.
+    """Class detecting breakpoints in a time series using the MDL method.
+
+    Attributes:
+        x (np.ndarray): One-dimensional input data array
+        min_seg (int): Minimum segment length between breakpoints
+
+    Methods:
+        detect_breaks_mdl(segment, method): Detects breakpoints in a segment using MDL method
+        _test_breakpoint(segment, candidate): Tests if a breakpoint is valid
+        _mdl(segment, BP): Calculates MDL value for segment and breakpoints
+        stepstat_mdl(BP, threshold): Calculates statistics for breakpoints
+        plot_results(breaks): Creates a plot with breakpoints
+        save_to_csv(bp_file, step_file, final_breaks): Saves breakpoints and stats to CSV files
     """
     def __init__(self, x, min_seg=300):
         self.x = x
         self.min_seg = min_seg
 
     def detect_breaks_mdl(self, segment, method):
+        """Detects breakpoints in a segment using the MDL method.
+
+        Args:
+            segment (np.ndarray): One-dimensional input data array
+            method (str): Method for detecting breakpoints ('full' or 'full_two_break')
+
+        Returns:
+            np.ndarray: Array containing indices of detected breakpoints or empty array if none found    
+        """
         if method == "full":
             candidate = detect_single_breakpoint(segment, self.min_seg)
         elif method == "full_two_break":
@@ -120,6 +149,15 @@ class MDLBreakDetector:
         return candidate if self._test_breakpoint(segment, candidate) else np.empty(0, dtype=np.int32)
 
     def _test_breakpoint(self, segment, candidate):
+        """Tests if a breakpoint is valid.
+
+        Args:
+            segment (np.ndarray): One-dimensional input data array
+            candidate (np.ndarray): Array containing indices of detected breakpoints
+
+        Returns:
+            bool: True if breakpoint is valid, False otherwise
+        """
         if candidate.size == 0:
             return False
         mdl_no = self._mdl(segment, np.empty(0, dtype=np.int32))
@@ -127,6 +165,15 @@ class MDLBreakDetector:
         return mdl_no > mdl_yes
 
     def _mdl(self, segment, BP):
+        """Calculates MDL value for segment and breakpoints.
+        
+        Args:
+            segment (np.ndarray): One-dimensional input data array
+            BP (np.ndarray): Array containing indices of breakpoints
+            
+        Returns:
+            float: MDL value for segment and breakpoints
+        """
         N = segment.size
         BPi = np.unique(np.concatenate(([0], BP, [N])))
         p = BPi.size - 1
@@ -147,6 +194,16 @@ class MDLBreakDetector:
         return p*np.log(N) + 0.5*CL + (N/2)*np.log(RSS/N)
 
     def stepstat_mdl(self, BP, threshold=0.8):
+        """Calculates statistics for breakpoints.
+        
+        Args:
+            BP (np.ndarray): Array containing indices of breakpoints
+            threshold (float): Threshold for filtering breakpoints
+            
+        Returns:
+            np.ndarray: Array containing filtered breakpoints
+            np.ndarray: Array containing step values
+        """
         BP = np.append(BP, len(self.x))
         stepvalue = np.zeros(len(BP))
         skip = 1
@@ -168,6 +225,14 @@ class MDLBreakDetector:
         return filtered, stepvalue
 
     def plot_results(self, breaks):
+        """Creates a plot with breakpoints.
+        
+        Args:
+            breaks (np.ndarray): Array containing indices of breakpoints
+        
+        Returns:
+            None
+        """
         T = np.arange(len(self.x))
         fig, ax = plt.subplots(figsize=(12,8))
         ax.plot(T, self.x, label='Data', color='blue')
@@ -192,8 +257,40 @@ class MDLBreakDetector:
         plt.tight_layout()
         plt.show()
 
+    def save_to_csv(self, bp_file, step_file, final_breaks):
+        """Saves breakpoints and stats to CSV files.
+
+        Args:
+            bp_file (str): File name for breakpoints
+            step_file (str): File name for step values
+            final_breaks (np.ndarray): Array containing indices of breakpoints
+
+        Returns:
+            None
+
+        TODO: 
+            * Add header to CSV files
+            * Prefferably make it make it one file with two columns 
+        """
+        with open(bp_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(final_breaks)
+
+        _, stepvalue = self.stepstat_mdl(final_breaks)
+        with open(step_file, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(stepvalue)
+
 
 def process_segment(args):
+    """Processes a segment of the time series.
+    
+    Args:
+        args (tuple): Tuple containing time series segment and start and end indices
+        
+    Returns:
+        np.ndarray: Array containing indices of detected breakpoints
+    """
     x, start, end, min_seg = args
     detector = MDLBreakDetector(x, min_seg=min_seg)
     BP_local = np.array([end], dtype=np.int32)
@@ -227,7 +324,6 @@ def process_segment(args):
 
 
 if __name__ == "__main__":
-    # Możesz włączyć lub wyłączyć logowanie, tutaj ograniczamy się do minimum
     with open('simulation_m20_D0.001.p', 'rb') as f:
         current = pickle.load(f)
 
@@ -244,7 +340,6 @@ if __name__ == "__main__":
         end = n if i == core_count - 1 else start + segment
         args_list.append((x, start, end, min_seg))
 
-    # Użycie Pool.map do równoległego przetwarzania segmentów
     with multiprocessing.Pool(core_count) as pool:
         results = pool.map(process_segment, args_list)
 
@@ -252,8 +347,12 @@ if __name__ == "__main__":
         combined = np.sort(np.concatenate(results))
         detector = MDLBreakDetector(x, min_seg=min_seg)
         final_breaks, stepvalue = detector.stepstat_mdl(combined)
-        detector.plot_results(final_breaks)
+
+        detector.save_to_csv("breakpoints.csv","stepvalues.csv", final_breaks)
+
         elapsed = time.time() - start_time
         print(f"Finished in {elapsed:.2f} seconds.")
+
+        detector.plot_results(final_breaks)
     else:
         print("No breaks found.")
